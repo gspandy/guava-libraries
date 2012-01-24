@@ -24,11 +24,11 @@ import com.google.common.collect.Multimap;
  *
  * @author Cliff Biffle
  */
-interface HandlerFindingStrategy {
+public interface HandlerFindingStrategy {
 
   /**
    * Finds all suitable event handler methods in {@code source}, organizes them
-   * by the type of event they handle, and wraps them in {@link EventHandler}s.
+   * by the type of event they handle, and wraps them in {@link MethodInvokingEventHandler}s.
    *
    * @param source  object whose handlers are desired.
    * @return EventHandler objects for each handler method, organized by event
@@ -39,4 +39,14 @@ interface HandlerFindingStrategy {
    */
   Multimap<Class<?>, EventHandler> findAllHandlers(Object source);
 
+  /**
+   * Returns the "handled" class of the event specified.  The value returned corresponds to
+   * the keys of the map returned by {@linkplain #findAllHandlers(Object)}.  This is useful
+   * in applications which wish to wrap events in an envelope or perform some other kind of
+   * pre- or post-processing.
+   *
+   * @param event the event
+   * @return the class to use to look up the event's handler(s).
+   */
+  Class<?> getHandledClass(Object event);
 }

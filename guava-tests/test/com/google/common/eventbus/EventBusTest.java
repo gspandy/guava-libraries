@@ -17,9 +17,11 @@
 package com.google.common.eventbus;
 
 import com.google.common.collect.Lists;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+
 import junit.framework.TestCase;
 
 /**

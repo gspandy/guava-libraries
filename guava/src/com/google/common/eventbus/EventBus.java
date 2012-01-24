@@ -29,7 +29,6 @@ import com.google.common.collect.Multimaps;
 import com.google.common.collect.SetMultimap;
 import com.google.common.collect.Sets;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
@@ -127,11 +126,9 @@ public class EventBus {
   private final Logger logger;
 
   /**
-   * Strategy for finding handler methods in registered objects.  Currently,
-   * only the {@link AnnotatedHandlerFinder} is supported, but this is
-   * encapsulated for future expansion.
+   * Strategy for finding handler methods in registered objects.
    */
-  private final HandlerFindingStrategy finder = new AnnotatedHandlerFinder();
+  private final HandlerFindingStrategy finder;
 
   /** queues of events for the current thread to dispatch */
   private final ThreadLocal<ConcurrentLinkedQueue<EventWithHandler>>
@@ -196,7 +193,30 @@ public class EventBus {
    *                    be a valid Java identifier.
    */
   public EventBus(String identifier) {
+      this(identifier, new AnnotatedHandlerFinder());
+  }
+
+  /**
+   * Creates a new EventBus named "default", with a custom strategy
+   * for finding event handler methods.
+   *
+   * @param finder      the event handler finder strategy.
+   */
+  public EventBus(HandlerFindingStrategy finder) {
+      this("default", finder);
+  }
+
+  /**
+   * Creates a new EventBus with the given {@code identifier}, with a custom strategy
+   * for finding event handler methods.
+   *
+   * @param identifier  a brief name for this bus, for logging purposes.  Should
+   *                    be a valid Java identifier.
+   * @param finder      the event handler finder strategy.
+   */
+  public EventBus(String identifier, HandlerFindingStrategy finder) {
     logger = Logger.getLogger(EventBus.class.getName() + "." + identifier);
+    this.finder = finder;
   }
 
   /**
@@ -222,7 +242,7 @@ public class EventBus {
     for (Entry<Class<?>, Collection<EventHandler>> entry : methodsInListener.asMap().entrySet()) {
       Set<EventHandler> currentHandlers = getHandlersForEventType(entry.getKey());
       Collection<EventHandler> eventMethodsInListener = entry.getValue();
-      
+
       if (currentHandlers == null || !currentHandlers.containsAll(entry.getValue())) {
         throw new IllegalArgumentException(
             "missing event handler for an annotated method. Is " + object + " registered?");
@@ -243,7 +263,7 @@ public class EventBus {
    * @param event  event to post.
    */
   public void post(Object event) {
-    Set<Class<?>> dispatchTypes = flattenHierarchy(event.getClass());
+    Set<Class<?>> dispatchTypes = flattenHierarchy(finder.getHandledClass(event));
 
     boolean dispatched = false;
     for (Class<?> eventType : dispatchTypes) {
@@ -297,13 +317,19 @@ public class EventBus {
       }
     } finally {
       isDispatching.set(false);
+      // If we get here and there are undispatched events on the queue, it means
+      // a subclass has intentionally overridden the dispatch method to throw an
+      // exception. We will take this to mean any further events should not be
+      // dispatched.
+      eventsToDispatch.get().clear();
     }
   }
 
   /**
    * Dispatches {@code event} to the handler in {@code wrapper}.  This method
    * is an appropriate override point for subclasses that wish to make
-   * event delivery asynchronous.
+   * event delivery asynchronous.  Note: if this method throws an exception,
+   * any undispatched events on the current thread will be abandoned.
    *
    * @param event  event to dispatch.
    * @param wrapper  wrapper that will call the handler.
@@ -311,7 +337,7 @@ public class EventBus {
   protected void dispatch(Object event, EventHandler wrapper) {
     try {
       wrapper.handleEvent(event);
-    } catch (InvocationTargetException e) {
+    } catch (Exception e) {
       logger.log(Level.SEVERE,
           "Could not dispatch event: " + event + " to handler " + wrapper, e);
     }

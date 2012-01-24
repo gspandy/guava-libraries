@@ -16,33 +16,56 @@
 
 package com.google.common.eventbus;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 
 /**
- * Wraps a single-argument 'handler' method on a specific object, and ensures
- * that only one thread may enter the method at a time.
+ * Wraps a (potentially) non-thread-safe EventHandler, ensuring only one thread can
+ * access it at a time
  *
- * <p>Beyond synchronization, this class behaves identically to
- * {@link EventHandler}.
- *
- * @author Cliff Biffle
+ * @author Cliff Biffle, Kris J. Pruden
  */
-class SynchronizedEventHandler extends EventHandler {
+public class SynchronizedEventHandler implements EventHandler {
+  private EventHandler wrapped;
+
   /**
-   * Creates a new SynchronizedEventHandler to wrap {@code method} on
-   * {@code target}.
+   * Creates a new SynchronizedEventHandler to wrap an underlying
+   * unsynchronized handler
    *
    * @param target  object to which the method applies.
    * @param method  handler method.
    */
-  public SynchronizedEventHandler(Object target, Method method) {
-    super(target, method);
+  public SynchronizedEventHandler(EventHandler wrapped) {
+    this.wrapped = wrapped;
   }
 
-  @Override public synchronized void handleEvent(Object event)
-      throws InvocationTargetException {
-    super.handleEvent(event);
+  @Override public synchronized void handleEvent(Object event) throws Exception {
+    wrapped.handleEvent(event);
   }
 
+
+  @Override public String toString() {
+    return "[synchronized " + wrapped + "]";
+  }
+
+  @Override public int hashCode() {
+    final int PRIME = 269;
+    return (PRIME + wrapped.hashCode());
+  }
+
+  @Override public boolean equals(Object obj) {
+    if(this == obj) {
+      return true;
+    }
+
+    if(obj == null) {
+      return false;
+    }
+
+    if(getClass() != obj.getClass()) {
+      return false;
+    }
+
+    final SynchronizedEventHandler other = (SynchronizedEventHandler) obj;
+
+    return this.wrapped.equals(other.wrapped);
+  }
 }

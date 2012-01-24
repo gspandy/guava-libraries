@@ -18,6 +18,8 @@ package com.google.common.eventbus;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 
 /**
@@ -26,7 +28,16 @@ import java.lang.reflect.Method;
  *
  * @author Cliff Biffle
  */
-class AnnotatedHandlerFinder implements HandlerFindingStrategy {
+public class AnnotatedHandlerFinder implements HandlerFindingStrategy {
+  private final Class<? extends Annotation> handlerAnnotation;
+
+  public AnnotatedHandlerFinder() {
+      this(Subscribe.class);
+  }
+
+  protected AnnotatedHandlerFinder(Class<? extends Annotation> handlerAnnotation) {
+      this.handlerAnnotation = handlerAnnotation;
+  }
 
   /**
    * {@inheritDoc}
@@ -41,18 +52,18 @@ class AnnotatedHandlerFinder implements HandlerFindingStrategy {
     Class clazz = listener.getClass();
     while (clazz != null) {
       for (Method method : clazz.getMethods()) {
-        Subscribe annotation = method.getAnnotation(Subscribe.class);
+        Annotation annotation = method.getAnnotation(handlerAnnotation);
 
         if (annotation != null) {
           Class<?>[] parameterTypes = method.getParameterTypes();
-          if (parameterTypes.length != 1) {
+          if (parameterTypes.length < 1) {
             throw new IllegalArgumentException(
-                "Method " + method + " has @Subscribe annotation, but requires " +
-                parameterTypes.length + " arguments.  Event handler methods " +
-                "must require a single argument.");
-          }
+                        "Method " + method + " has @" + handlerAnnotation.getSimpleName() + " annotation, but requires " +
+                                parameterTypes.length + " arguments.  Event handler methods " +
+                        "must require at least one argument.");
+            }
           Class<?> eventType = parameterTypes[0];
-          EventHandler handler = makeHandler(listener, method);
+          EventHandler handler = makeHandler(listener, method, annotation);
 
           methodsInListener.put(eventType, handler);
         }
@@ -60,6 +71,10 @@ class AnnotatedHandlerFinder implements HandlerFindingStrategy {
       clazz = clazz.getSuperclass();
     }
     return methodsInListener;
+  }
+
+  @Override public Class<?> getHandledClass(Object event) {
+      return event.getClass();
   }
 
   /**
@@ -70,15 +85,21 @@ class AnnotatedHandlerFinder implements HandlerFindingStrategy {
    *
    * @param listener  object bearing the event handler method.
    * @param method  the event handler method to wrap in an EventHandler.
+   * @param annotation  the Annotation instance marking the method
    * @return an EventHandler that will call {@code method} on {@code listener}
    *         when invoked.
    */
-  private static EventHandler makeHandler(Object listener, Method method) {
-    EventHandler wrapper;
-    if (methodIsDeclaredThreadSafe(method)) {
-      wrapper = new EventHandler(listener, method);
-    } else {
-      wrapper = new SynchronizedEventHandler(listener, method);
+  protected EventHandler makeHandler(Object listener, Method method, Annotation annotation) {
+    Class<?>[] parameterTypes = method.getParameterTypes();
+    if (parameterTypes.length != 1) {
+      throw new IllegalArgumentException(
+                "Method " + method + " has @Subscribe annotation, but requires " +
+                        parameterTypes.length + " arguments.  Event handler methods " +
+                "must require a single argument.");
+    }
+    EventHandler wrapper = new MethodInvokingEventHandler(listener, method);
+    if (!methodIsDeclaredThreadSafe(method)) {
+      wrapper = new SynchronizedEventHandler(wrapper);
     }
     return wrapper;
   }

@@ -21,7 +21,7 @@ import java.lang.reflect.Method;
 import junit.framework.TestCase;
 
 /**
- * Test case for {@link EventHandler}.
+ * Test case for {@link MethodInvokingEventHandler}.
  *
  * @author Cliff Biffle
  */
@@ -47,7 +47,7 @@ public class EventHandlerTest extends TestCase {
   public void testBasicMethodCall() throws Exception {
     Method method = getRecordingMethod();
 
-    EventHandler handler = new EventHandler(this, method);
+    MethodInvokingEventHandler handler = new MethodInvokingEventHandler(this, method);
 
     handler.handleEvent(FIXTURE_ARGUMENT);
 
@@ -61,7 +61,7 @@ public class EventHandlerTest extends TestCase {
    */
   public void testRejectionOfNullMethods() {
     try {
-      new EventHandler(this, null);
+      new MethodInvokingEventHandler(this, null);
       fail("EventHandler must immediately reject null methods.");
     } catch (NullPointerException e) {
       // Hooray!
@@ -74,7 +74,7 @@ public class EventHandlerTest extends TestCase {
   public void testRejectionOfNullTargets() {
     Method method = getRecordingMethod();
     try {
-      new EventHandler(null, method);
+      new MethodInvokingEventHandler(null, method);
       fail("EventHandler must immediately reject null targets.");
     } catch (NullPointerException e) {
       // Huzzah!
@@ -83,7 +83,7 @@ public class EventHandlerTest extends TestCase {
 
   public void testExceptionWrapping() {
     Method method = getExceptionThrowingMethod();
-    EventHandler handler = new EventHandler(this, method);
+    MethodInvokingEventHandler handler = new MethodInvokingEventHandler(this, method);
 
     try {
       handler.handleEvent(new Object());
@@ -96,7 +96,7 @@ public class EventHandlerTest extends TestCase {
 
   public void testErrorPassthrough() throws InvocationTargetException {
     Method method = getErrorThrowingMethod();
-    EventHandler handler = new EventHandler(this, method);
+    MethodInvokingEventHandler handler = new MethodInvokingEventHandler(this, method);
 
     try {
       handler.handleEvent(new Object());
